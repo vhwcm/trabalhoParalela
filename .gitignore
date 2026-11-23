@@ -1,0 +1,7 @@
+lcs
+lcs_sequencial
+lcs_paralelo
+fileA.in
+fileB.in
+*.o
+__pycache__/
