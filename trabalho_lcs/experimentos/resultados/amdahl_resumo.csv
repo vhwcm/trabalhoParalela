@@ -1,0 +1,17 @@
+tipo,item,media_s,dp_s,cv_pct,fracao_pct,speedup_max_amdahl
+fase,leitura_s,0.001354,0.000084,6.24,0.0207,
+fase,alocacao_s,0.000115,0.000014,12.15,0.0018,
+fase,inicializacao_s,0.051604,0.004086,7.92,0.7879,
+fase,calculo_s,6.284854,0.449600,7.15,95.9616,
+fase,liberacao_s,0.211401,0.040271,19.05,3.2278,
+fase,nao_paralelizavel_s,0.264488,0.043399,16.41,4.0384,
+fase,total_s,6.549342,0.491506,7.50,100.0000,
+fracao,f_seq (nao_paralelizavel),0.264488,,,4.0384,
+fracao,f_par (calculo),6.284854,,,95.9616,
+amdahl_teorico,p=2,,,,,1.9224
+amdahl_teorico,p=4,,,,,3.5678
+amdahl_teorico,p=6,,,,,4.9920
+amdahl_teorico,p=8,,,,,6.2369
+amdahl_teorico,p=10,,,,,7.3343
+amdahl_teorico,p=12,,,,,8.3090
+amdahl_teorico,p=inf,,,,,24.7624
