@@ -1,0 +1,30 @@
+#separator:tab
+#html:true
+#notetype:Basic
+#deck:Defesa LCS::Extras
+#tags column:3
+Complexidade do LCS	O(N x M) em tempo e em memória (a matriz inteira fica na memória).	problema
+Fontes de overhead em programas paralelos (slide)	Processos inativos (desbalanceamento, sincronização), comunicação, trabalho extra e caminho crítico.	teoria
+O que é uma task no OpenMP?	Unidade de trabalho que vai para uma fila e pode ser executada por qualquer thread do time.	teoria
+O que é firstprivate?	Cada thread ou task recebe uma cópia própria da variável, com o valor do momento da criação.	teoria
+O que faz MPI_Bcast?	O rank raiz (0) envia o mesmo dado para todos os processos do comunicador.	teoria
+O que é SMT (hyper-threading)?	Duas threads de hardware no mesmo núcleo físico, dividindo unidades de execução e caches L1/L2.	teoria
+Linha do lcs_omp_diagonal e seu pragma	Função na linha 123, parallel for schedule(static) na 133.	codigo
+Linha do lcs_omp_blocos e seu pragma	Função na linha 160, laço de diagonais de blocos na 169, parallel for schedule(dynamic, 1) na 173.	codigo
+Onde está o MPI_Init_thread?	Linha 362, com MPI_THREAD_FUNNELED.	codigo
+Onde a main se divide entre ramo OpenMP e ramo MPI?	Linha 402 (seq, omp_diag, omp_blocos, omp_tarefas: só o rank 0 trabalha) e linha 455 (mpi_blocos e hibrido).	codigo
+mpi_blocos: o que acontece se houver mais processos do que linhas?	procs_ativos = min(tamB, num_procs). Os processos que sobram retornam sem fazer nada.	codigo
+mpi_blocos: tamanho de cada mensagem da borda	1024 valores unsigned short = 2 KB (MPI_UNSIGNED_SHORT). A tag é o número do pedaço.	codigo
+Ramo MPI da main: como as sequências chegam aos outros processos?	O rank 0 lê os arquivos e faz MPI_Bcast dos tamanhos e depois das sequências. Os outros fazem malloc antes.	codigo
+Ramo MPI da main: por que tem MPI_Barrier entre as fases?	Para que o tempo de cada fase seja o do processo mais lento.	codigo
+hibrido: por que o pedaço do MPI é 4x mais largo?	Para ter vários sub-blocos dentro de cada pedaço e dar trabalho para as threads.	codigo
+hibrido com OMP_NUM_THREADS=1 vira o quê?	Fica igual ao mpi_blocos (largura = tam_bloco e calcula sem threads).	codigo
+Por que FUNNELED basta no híbrido?	Só a thread principal chama MPI, sempre fora das regiões paralelas.	codigo
+Por que blocos pequenos (128) são piores?	Muitas tasks: o overhead de criar e sincronizar passa o ganho.	decisao
+Por que todas as versões em um arquivo com -v?	Mesma leitura, alocação e medição para todas, então a comparação é justa.	decisao
+Por que dividir por faixas de linhas no MPI?	Cada processo só precisa da última linha do anterior. A comunicação é pequena: uma borda por pedaço.	decisao
+Entradas usadas	DNA aleatório (A, C, G, T) com semente fixa. N = 15k, 30k e 50k, as duas sequências do mesmo tamanho.	metodologia
+Speedup de 12 threads sobre o seq (N = 50k)	4,76 (6,549 s / 1,375 s).	resultado
+Eficiência da omp_tarefas em N = 50k	2: 0,81 | 4: 0,50 | 8: 0,33 | 12: 0,24	resultado
+Ganho de 10 (sem SMT) para 12 threads (com SMT)	Só 1,8% / 5,5% / 3,9% (N = 15k / 30k / 50k). A eficiência caiu.	resultado
+Por que o MPI varia mais que o OpenMP?	Um atraso num processo se propaga pelo pipeline para todos os seguintes.	resultado

@@ -1,0 +1,105 @@
+#separator:tab
+#html:true
+#notetype:Basic
+#deck:Defesa LCS
+#tags column:3
+O que o LCS calcula no trabalho?	O tamanho da maior subsequência comum entre duas sequências (não precisa ser contígua). Exemplo do enunciado: heagawghee e pawheae dão 5.	problema
+Regra de preenchimento de M[i][j] no LCS	Se A[j-1] == B[i-1]: M[i][j] = M[i-1][j-1] + 1 (diagonal + 1).<br>Senão: M[i][j] = max(M[i-1][j], M[i][j-1]) (cima ou esquerda).	problema
+Onde fica a resposta na matriz do LCS? Quais as dimensões?	Em M[tamB][tamA]. A matriz tem (tamB+1) x (tamA+1): linhas = B, colunas = A. Linha 0 e coluna 0 valem zero.	problema
+Por que não dá para colocar um parallel for direto no kernel do LCS?	Cada célula depende da de cima, da esquerda e da diagonal. Os dois laços carregam dependência.	problema
+Por que as células de uma antidiagonal são independentes?	(i,j) está na diagonal d = i+j. Ela depende de (i-1,j) e (i,j-1), que estão em d-1, e de (i-1,j-1), em d-2. Só depende de diagonais anteriores.	problema
+O que é a frente de onda (wavefront)?	Calcular a matriz diagonal por diagonal: tudo que está na mesma antidiagonal (de células ou de blocos) roda em paralelo. O paralelismo começa pequeno, cresce até o meio e diminui no fim.	problema
+Em blocos, de quais blocos o bloco (bi,bj) depende?	Do de cima (bi-1,bj) e do da esquerda (bi,bj-1). O da diagonal (bi-1,bj-1) já está garantido de forma transitiva.	problema
+Fórmula do speedup	S(p) = T(1) / T(p). Sempre com o mesmo tamanho de entrada.	teoria
+Fórmula da eficiência	E(p) = S(p) / p.	teoria
+Lei de Amdahl (fórmula e limite)	S(p) = 1 / (fs + (1 - fs)/p).<br>Com p infinito: S = 1/fs.	teoria
+Limitações da Lei de Amdahl (slide)	Ignora comunicação e sincronização, e supõe que a fração sequencial não muda com o tamanho do problema.	teoria
+Lei de Gustafson-Barsis (ideia)	Se o problema cresce junto com p, a parte paralela cresce e o speedup escalado pode passar o limite de Amdahl. S(p) = p - alfa(p - 1). Ligada à escalabilidade fraca.	teoria
+Definição de escalabilidade forte (aula 9)	N fixo, aumenta p, e a eficiência se mantém.	teoria
+Definição de escalabilidade fraca (aula 9)	A eficiência se mantém quando N aumenta junto com p.	teoria
+O que é speedup superlinear e o que causa?	S(p) &gt; p. Causas: cache (problema dividido cabe na cache), mais memória disponível, aleatoriedade em busca.	teoria
+Armadilha do speedup (slide): com o que comparar?	Comparar com um algoritmo pior é enganoso. Justo: mesmo algoritmo com 1 processador, ou o melhor algoritmo sequencial.	teoria
+Granularidade fina x grossa	Fina: muitas tarefas pequenas, muito overhead de criação e sincronização.<br>Grossa: poucas tarefas grandes, menos overhead, mas pode faltar paralelismo.	teoria
+schedule(static) x schedule(dynamic, 1)	static: divide as iterações em partes iguais no início (bom para custo igual).<br>dynamic,1: cada thread pega 1 iteração por vez quando fica livre (bom para custo variado).	teoria
+Onde o OpenMP tem barreira implícita?	No fim de parallel, de for/parallel for e de single (a não ser com nowait).	teoria
+O que faz #pragma omp single?	Só uma thread do time executa o bloco. As outras esperam na barreira implícita do fim (e podem executar tasks enquanto isso).	teoria
+Como funciona depend(in) / depend(out)?	A task com in: x só começa depois que a task irmã criada antes com out: x terminou. A ordem é a ordem de criação.	teoria
+MPI_Send / MPI_Recv: bloqueante significa o quê?	Só retorna quando o buffer pode ser reutilizado. O Send padrão pode copiar para um buffer do MPI e voltar logo (mensagens pequenas) ou esperar o Recv.	teoria
+O que significa MPI_THREAD_FUNNELED?	O programa tem várias threads, mas só a thread principal faz chamadas MPI.	teoria
+Linha: onde está o typedef do tipo da matriz e qual é?	Linha 11: typedef unsigned short tipo_matriz.	codigo
+Função que aloca a matriz (linha e ideia)	alocar_matriz, linha 44. Um bloco contíguo único + vetor de ponteiros para as linhas. Usa size_t.	codigo
+Linha da versão vencedora	lcs_omp_tarefas, linha 186. depend nas linhas 208 a 210.	codigo
+Linha do lcs_mpi_blocos e das chamadas Send/Recv	Função na linha 227. Laço do pipeline na 245, MPI_Recv na 250, MPI_Send na 266.	codigo
+Linha do lcs_hibrido e do parallel for interno	Função na linha 284. largura_mpi na 302, parallel for na 329.	codigo
+Linha do processar_bloco e quem usa	Linha 146. Calcula um retângulo da matriz linha a linha. Usado por omp_blocos, omp_tarefas e hibrido.	codigo
+Onde a main escolhe a versão padrão?	Linha 370: hibrido se num_procs &gt; 1, senão omp_tarefas.	codigo
+Onde o DEBUGMATRIX junta a matriz no MPI?	A partir da linha 542. O rank 0 recebe a faixa de cada processo com MPI_Recv e imprime a matriz completa.	codigo
+Flags do programa	-v versão, -b tamanho do bloco (padrão 1024), -a e -B arquivos (padrão fileA.in e fileB.in), -m tempos por fase no stderr.	codigo
+As 6 versões do -v	seq, omp_diag, omp_blocos, omp_tarefas, mpi_blocos, hibrido.	codigo
+omp_tarefas: o que é o vetor dep?	Vetor char (num_bi+1) x (num_bj+1), criado com calloc. Nunca é lido nem escrito: só os endereços servem para o OpenMP montar as dependências.	codigo
+omp_tarefas: por que dep tem uma linha e uma coluna a mais?	É 1-based: o bloco (bi,bj) usa [bi+1][bj+1]. Linha 0 e coluna 0 são sentinelas que ninguém escreve, então os blocos da borda não precisam de if.	codigo
+omp_tarefas: os 3 depends da task	in: dep[bi][bj+1] (bloco de cima)<br>in: dep[bi+1][bj] (bloco da esquerda)<br>out: dep[bi+1][bj+1] (o próprio bloco)	codigo
+omp_tarefas: para que o single?	Só uma thread cria as tasks. Sem ele, cada thread criaria todas as tasks e cada bloco seria calculado várias vezes.	codigo
+omp_tarefas: por que a ordem de criação das tasks importa?	depend só ordena tasks irmãs pela ordem de criação. Criando linha por linha, quem produz é sempre criado antes de quem consome.	codigo
+omp_tarefas: o que garante que tudo terminou antes do free(dep)?	A barreira implícita no fim do single e do parallel espera todas as tasks.	codigo
+omp_tarefas x omp_blocos: diferença principal	omp_blocos tem barreira no fim de cada diagonal de blocos (todo mundo espera o bloco mais lento). Em omp_tarefas, um bloco começa assim que os vizinhos de cima e da esquerda terminam.	codigo
+Por que a ausência de barreira ajuda nesta máquina?	P-cores e E-cores têm velocidades diferentes. Com barreira, todos esperariam o bloco que caiu num E-core.	codigo
+mpi_blocos: como as linhas são divididas?	Faixas de linhas consecutivas. base = tamB/procs. Os primeiros &#x27;resto&#x27; processos ganham 1 linha a mais. linha_inicio diz onde começa a faixa.	codigo
+mpi_blocos: para que serve a linha 0 da matriz local?	É a borda: guarda o trecho da última linha do processo anterior (no rank 0 é zero). A matriz local tem linhas_locais + 1 linhas.	codigo
+mpi_blocos: os 3 passos de cada pedaço de colunas	1) rank &gt; 0 faz MPI_Recv da borda do anterior para a linha 0.<br>2) Calcula o pedaço em todas as suas linhas.<br>3) MPI_Send da última linha do pedaço para o próximo rank.	codigo
+mpi_blocos: como a diagonal funciona na borda de um pedaço?	A célula [1][j_ini] usa [0][j_ini-1], que chegou no pedaço anterior (ou é a coluna 0) e continua na linha 0 local.	codigo
+mpi_blocos: por que não dá deadlock?	É uma corrente sem ciclo: cada processo só recebe do anterior e só envia para o próximo. E mensagens de 2 KB normalmente vão para buffer, então o Send volta logo.	codigo
+mpi_blocos: como o Score chega ao rank 0?	O último processo tem a célula final e envia com MPI_Send para o rank 0, que imprime.	codigo
+hibrido: o que muda em relação ao mpi_blocos?	O pedaço de colunas do MPI fica 4x mais largo (4096), e dentro dele os sub-blocos de 1024 são calculados em antidiagonais com parallel for schedule(dynamic,1).	codigo
+hibrido: para que seqB + linha_inicio?	Desloca o ponteiro para que processar_bloco use índices locais (linha 1 da faixa = primeira linha do processo).	codigo
+Ponto fraco do MPI_Init_thread no código	Não conferimos o nível de suporte retornado ((void)suporte). Funciona no Open MPI usado, mas o certo seria checar.	codigo
+Por que unsigned short?	Igual ao original. 2 bytes por célula: N = 50k cabe em 4,7 GB. Com int seriam 9,3 GB.	decisao
+Limite do unsigned short é problema?	Máximo 65535. O Score nunca passa do tamanho da menor sequência, então funciona até N = 65535.	decisao
+Por que size_t em alocar_matriz?	(N+1)^2 passa do maior int a partir de N = 46.341. Com N = 50k daria overflow.	decisao
+Por que matriz contígua (o original fazia um malloc por linha)?	Um malloc só, free simples, e permite mandar várias linhas numa mensagem MPI (DEBUGMATRIX). O acesso continua matriz[i][j].	decisao
+Por que não guardar só 2 linhas da matriz?	O enunciado exige a matriz construída inteira na memória (para verificar com DEBUGMATRIX). É isso que limita o N.	decisao
+Por que o omp_diag ficou mais lento que o seq?	Granularidade fina demais: cerca de 2N diagonais, cada uma com parallel for e barreira, e pouco trabalho. Speedup 0,52 em N = 10k.	decisao
+Como escolheram o bloco de 1024?	Testamos 128, 256, 512, 1024 (N = 50k, 10 threads). Cálculo: 1,75 / 1,39 / 1,09 / 1,08 s.	decisao
+Por que 1024 é bom para a cache?	Uma linha do bloco tem 2 KB. As duas linhas em uso (atual e anterior) somam 4 KB e cabem na L1 (48 KB no P-core, 32 KB no E-core).	decisao
+Por que schedule(dynamic,1) no omp_blocos?	Blocos da borda são menores e os núcleos têm velocidades diferentes. Quem termina primeiro pega o próximo.	decisao
+Por que o padrão com mpirun é o híbrido e não o mpi_blocos?	O trabalho pede OpenMP + MPI e o híbrido usa os dois. Faz mais sentido em várias máquinas (1 processo por máquina + threads).	decisao
+Processador e topologia	i7-1265U: 2 P-cores com SMT (CPUs 0-1 e 2-3, até 4,8 GHz) + 8 E-cores sem SMT (CPUs 4-11, até 3,6 GHz). 10 núcleos, 12 threads, L3 12 MB, 15 GiB RAM.	metodologia
+SO, compilador e flags	Ubuntu 24.04.5, kernel 7.0.0-43, gcc 13.3.0 via mpicc (Open MPI 4.1.6), -O3 -fopenmp -Wall.	metodologia
+Turbo, governor e isolamento	Turbo ligado, governor powersave (padrão), núcleos não isolados, IDE aberta. Admitido no relatório.	metodologia
+Ordem de afinidade das threads	P-cores primeiro. 1 = CPU 0; 2 = CPUs 0 e 2; 4 = 2P + 2E; 6 = 2P + 4E; 8 = 2P + 6E; 10 = todos os físicos; 12 = todas as lógicas (SMT).	metodologia
+Como fixaram as threads/processos?	taskset -c, OMP_PROC_BIND=true e OMP_PLACES. No MPI: mpirun --bind-to none + taskset por processo.	metodologia
+Quantas execuções e quais estatísticas?	20 por configuração. Média e desvio padrão amostral. Speedup e eficiência sobre as médias.	metodologia
+Como o tempo foi medido?	Dentro do programa com MPI_Wtime, da leitura dos arquivos até o free. -m mostra cada fase.	metodologia
+Por que N máximo = 50.000?	Matriz de 4,7 GB. Com 52.000 a máquina começou a usar swap. O seq leva 6,5 s, abaixo dos 10 s sugeridos.	metodologia
+Como testaram a corretude?	Score e matriz inteira (-DDEBUGMATRIX) contra o lcs.c original. Casos: enunciado, vazias, 1 caractere, tamanhos primos, retangulares, mais processos que linhas, 1 a 8 threads, 1 a 5 processos, repetições para condição de corrida.	metodologia
+Por que comparar a matriz inteira e não só o Score?	O enunciado avisa que o resultado bater não garante que está correto. Um erro pode não mudar a célula final.	metodologia
+Fases do seq em N = 50k (%)	Leitura 0,02%, alocação 0,00%, inicialização 0,79%, cálculo 95,96%, liberação 3,23%.	resultado
+Fração puramente sequencial e de onde vem	4,04%. Quase tudo do free da matriz de 4,7 GB (3,23%) e da inicialização das bordas (0,79%).	resultado
+Por que inicializar a coluna 0 é caro?	Cada linha tem 100 KB, então cada elemento da coluna 0 cai numa página diferente: uma falta de página por linha.	resultado
+Tabela de Amdahl (fs = 0,0404)	p=2: 1,92 | 4: 3,57 | 8: 6,24 | 12: 8,31 | infinito: 24,76	resultado
+omp_tarefas N = 50k: tempo com 1 e 12 threads, speedup e eficiência	T1 = 4,02 s, T12 = 1,375 s. Speedup 2,92, eficiência 0,24.	resultado
+Speedups da omp_tarefas em N = 50k	2: 1,62 | 4: 1,99 | 8: 2,64 | 10: 2,81 | 12: 2,92	resultado
+Por que o maior ganho é de 1 para 2 threads?	Com 2 threads usamos os dois P-cores. De 2 para 4 entram E-cores, mais lentos (3,6 GHz contra 4,8 GHz).	resultado
+3 motivos do speedup longe de Amdahl	1) Limitado por memória (pouca conta por célula, banda dividida).<br>2) 8 dos 10 núcleos são E-cores (Amdahl supõe iguais).<br>3) Pouco paralelismo no começo e no fim da frente de onda.	resultado
+Por que a eficiência sobe um pouco com N?	Mais blocos (225 em 15k, 2.401 em 50k): o começo e o fim da frente de onda pesam menos. Ex.: 10 threads: 0,25 / 0,27 / 0,28.	resultado
+Por que blocos com 1 thread são 1,6x mais rápidos que o seq?	Cache: no seq a linha anterior (100 KB) já saiu da L1; no bloco de 1024, as duas linhas (4 KB) ficam na L1.	resultado
+Por que a base do speedup é T1 e não o seq?	Com o seq como base, 2 threads dariam eficiência 1,32: um superlinear falso, causado pela cache e não pelo paralelismo.	resultado
+Tabela 1 em N = 50k (speedup sobre o seq)	omp_blocos 4,19 | omp_tarefas 4,76 | mpi_blocos 4,56 | hibrido (5x2) 4,02	resultado
+Tabela 1 em N = 10k: quem ganhou e por quê?	mpi_blocos (3,99). Cada processo aloca, inicializa e libera só a sua faixa, e em entradas pequenas essas fases pesam bastante.	resultado
+MPI com 10 processos: speedup e eficiência	Speedup 2,20 a 2,33, eficiência 0,22 a 0,23. OpenMP com 10 threads: 2,52 a 2,81.	resultado
+Custo do pipeline MPI (enchimento)	O último processo só começa depois de P - 1 pedaços. N = 15k: 15 pedaços, 10 proc: todos juntos em 15/24 = 62% do tempo. N = 50k: 49/58 = 84%.	resultado
+Por que o MPI ficou atrás do OpenMP numa máquina só?	Mesmos limites (memória, E-cores), mais o enchimento e esvaziamento do pipeline e as cópias de borda. No OpenMP todos enxergam a mesma matriz.	resultado
+Escalabilidade fraca: como e resultado	N = 14.000 x raiz(p). Tempo ideal constante 0,31 s; foi para 1,31 s com 12 threads. Eficiência 0,24.	resultado
+Por que N cresce com raiz(p) na fraca?	O trabalho é N^2. Para cada thread ter as mesmas células, N^2 cresce com p, então N cresce com raiz(p).	resultado
+Conclusão de escalabilidade	Não foi escalável nesta máquina: a eficiência cai com N fixo (forte) e também na fraca.	resultado
+Por que a fraca falhou? (3 motivos)	Matriz vai de 392 MB a 4,7 GB com a mesma banda; threads novas são E-cores ou SMT; a parte sequencial (init + free) cresce de 0,04 s para 0,39 s.	resultado
+SMT: resultado e explicação	4 threads em 2 P-cores com SMT foram 2,7% / 11,0% / 12,9% mais lentas que 4 em núcleos separados. Dividem unidades e cache L1/L2; programa depende de memória.	resultado
+8 threads: 2P + 6E contra 8 E-cores	2P+6E foi 11,5% mais rápido no total, mas só 4,9% no cálculo. O resto vem da parte sequencial na thread 0 (P-core num caso, E-core no outro).	resultado
+Desvio do seq em N = 50k e explicação	7,5% da média. 15 primeiras ~6,05 s, 5 últimas ~6,98 s no cálculo. Provável queda de frequência por temperatura com turbo ligado.	resultado
+Desvio em entradas pequenas x grandes	Menos de 1 s: 9% a 17% (subida de frequência, faltas de página, IDE). N = 50k: 1,6% a 4,3%.	resultado
+Diferença de 18% entre baterias: o que é e o que fizeram?	10 proc em N = 50k: 1,44 s numa bateria e 1,21 s na outra. Maior que o desvio dentro de cada uma. Por isso só comparamos speedups dentro da mesma bateria.	resultado
+Limitações que devemos admitir	N abaixo de 10 s (RAM); turbo e powersave; IDE aberta; híbrido sem tabela de escalabilidade; &#x27;limitado por memória&#x27; não foi medido com ferramenta; suporte do MPI_Init_thread não conferido.	limitacao
+O que fariam diferente?	Desligar turbo e fixar governor em performance, fechar programas, tasks dentro do híbrido, MPI_Isend/Irecv para sobrepor comunicação, rodar MPI em várias máquinas, medir com perf.	limitacao
+Outra causa provável para a baixa eficiência (não medida)	As páginas da matriz são tocadas pela primeira vez durante o cálculo, então as faltas de página acontecem dentro da parte paralela.	limitacao
+Principais aprendizados	Dependência e wavefront; granularidade (omp_diag); cache pode dar falso superlinear; barreiras custam (tarefas); núcleos heterogêneos e afinidade; medir 20x mostra ruído e temperatura; MPI numa máquina só ajuda pouco.	limitacao
+Quando MPI e híbrido fariam sentido?	Em várias máquinas: a memória somada permite N maior, e o híbrido usa 1 processo por máquina com threads dentro, comunicando menos.	limitacao
